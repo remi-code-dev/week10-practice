@@ -346,3 +346,23 @@ After
 - ビジネスロジックをPostServiceへ移動
 - PostPolicyを作成して認可を管理
 - Controllerをシンプルな構成に変更
+
+### 9.week10/React フロントエンドのコンポーネント設計
+####　Reactの動かし方
+1. Laravel 側（Docker）を起動しておく
+```bash
+ docker compose up -d
+```
+2. React の依存パッケージをインストールする（初回のみ）
+```bash
+  cd my-frontend
+  npm install
+```
+3. 開発サーバーを起動する
+```bash
+  npm run dev
+```
+4. ブラウザで http://localhost:5173 を開く
+
+####　コンポーネント分割の理由
+　コンポーネント分割は前提として再利用性やコードの複雑さ解消のために行う。今回は、フォーム（PostForm）・一覧（PostList）・投稿1件の表示（PostItem）に分けた。フォームはデータ保存の役割、一覧はデータを表示する役割で、それぞれ役割が異なるため、分けた。PostItemは1件ごとの処理に分けられるため分割した。

@@ -22,11 +22,14 @@ class PostService
         private PostRepository $postRepository
     ) {}
 
-    public function createPost(User $user, array $data)
+    // $user が null の場合は投稿者なしで作成する（認証のない API から呼ばれる場合）
+    public function createPost(?User $user, array $data)
     {
         // DB::transaction(): この中の処理が全て成功すれば確定、途中でエラーが起きたら全て取り消す
         return DB::transaction(function () use ($user, $data) {
-            $post = $this->postRepository->createForUser($user, $data);
+            $post = $user
+                ? $this->postRepository->createForUser($user, $data)
+                : $this->postRepository->create($data);
 
             Log::info('Post created', ['post_id' => $post->id]);
 

@@ -36,6 +36,12 @@ class PostRepository
         return $user->posts()->create($data);
     }
 
+    // 投稿者なしで作成する（認証のない API からの投稿用）
+    public function create(array $data)
+    {
+        return Post::create($data);
+    }
+
     public function update(Post $post, array $data)
     {
         $post->update($data);
