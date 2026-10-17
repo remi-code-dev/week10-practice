@@ -16,10 +16,24 @@ class PostRepository
             ->paginate(10);
     }
 
+    // 全件取得（投稿者付き・最新順）。API の一覧用
+    public function getLatestWithUser()
+    {
+        return Post::with('user')
+            ->latest()
+            ->get();
+    }
+
     // IDで1件取得
     public function findById(int $id)
     {
         return Post::findOrFail($id);
+    }
+
+    // IDで1件取得（投稿者付き）。API の詳細用
+    public function findWithUser(int $id)
+    {
+        return Post::with('user')->findOrFail($id);
     }
 
     // 特定ユーザーの投稿を取得

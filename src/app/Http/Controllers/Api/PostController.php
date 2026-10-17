@@ -5,19 +5,21 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PostRequest;
 use App\Http\Resources\PostResource;
-use App\Models\Post;
+use App\Repositories\PostRepository;
 use App\Services\PostService;
 
 class PostController extends Controller
 {
+    // 読むだけの処理は Repository、作成などの処理は Service を使う（Web 側の PostController と同じ分け方）
     public function __construct(
         private PostService $postService,
+        private PostRepository $postRepository,
     ) {}
 
     public function index()
     {
-        // with('user') で投稿者をまとめて取得（N+1 対策）
-        $posts = Post::with('user')->latest()->get();
+        // Repository 側で with('user') を使い、投稿者をまとめて取得している（N+1 対策）
+        $posts = $this->postRepository->getLatestWithUser();
 
         // collection() で { "data": [ ... ] } の形に包んで返す
         return PostResource::collection($posts);
@@ -33,9 +35,9 @@ class PostController extends Controller
         return new PostResource($post->load('user'));
     }
 
-    public function show($id)
+    public function show(int $id)
     {
-        $post = Post::with('user')->findOrFail($id);
+        $post = $this->postRepository->findWithUser($id);
 
         return new PostResource($post);
     }
