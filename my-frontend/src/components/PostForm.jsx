@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import api from '../api'
 
 // onCreated … 保存に成功したときに親（App）へ知らせるための関数
 function PostForm({ onCreated }) {
@@ -14,8 +14,8 @@ function PostForm({ onCreated }) {
 
   // カテゴリーの選択肢を API から取得する
   useEffect(() => {
-    axios
-      .get('http://localhost/api/categories')
+    api
+      .get('/categories')
       .then((res) => setCategories(res.data.data))
       .catch((err) => console.error(err))
   }, [])
@@ -27,8 +27,8 @@ function PostForm({ onCreated }) {
     setSubmitting(true)
     setErrors({})
 
-    axios
-      .post('http://localhost/api/posts', {
+    api
+      .post('/posts', {
         title: title,
         content: content,
         category_id: categoryId,

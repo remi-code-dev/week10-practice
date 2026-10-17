@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import api from './api'
 import PostForm from './components/PostForm'
 import PostList from './components/PostList'
 
@@ -11,8 +11,8 @@ function App() {
 
   // 一覧を取得する処理を関数にまとめて、初回表示と保存後の両方で使い回す
   const fetchPosts = () => {
-    axios
-      .get('http://localhost/api/posts')
+    api
+      .get('/posts')
       .then((res) => {
         // res.data       … axios が受け取ったレスポンス本体
         // res.data.data  … Laravel の Resource が包んだ配列
