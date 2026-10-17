@@ -348,7 +348,8 @@ After
 - Controllerをシンプルな構成に変更
 
 ### 9.week10/React フロントエンドのコンポーネント設計
-####　Reactの動かし方
+#### Reactの動かし方
+- 初回は、上の「環境構築」1〜5 を先に済ませておく
 1. Laravel 側（Docker）を起動しておく
 ```bash
  docker compose up -d
@@ -364,5 +365,9 @@ After
 ```
 4. ブラウザで http://localhost:5173 を開く
 
-####　コンポーネント分割の理由
+![React の投稿一覧画面](docs/images/react-posts.png)
+- Reactが呼んでいるAPIのURL(http://localhost/api/posts)
+- CORSの設定(config/cors.php で localhost:5173を許可している)
+
+#### コンポーネント分割の理由
 　コンポーネント分割は前提として再利用性やコードの複雑さ解消のために行う。今回は、フォーム（PostForm）・一覧（PostList）・投稿1件の表示（PostItem）に分けた。フォームはデータ保存の役割、一覧はデータを表示する役割で、それぞれ役割が異なるため、分けた。PostItemは1件ごとの処理に分けられるため分割した。
