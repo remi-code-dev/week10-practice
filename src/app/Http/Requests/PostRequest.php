@@ -29,6 +29,8 @@ class PostRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'content' => ['required', 'string'],
             'category_id' => ['required', 'integer', 'exists:categories,id'],
+            // 画像は任意（nullable）。image: jpg/png/gif等の画像ファイルのみ、max:2048: 2MB（単位はKB）まで
+            'image' => ['nullable', 'image', 'max:2048'],
         ];
     }
 
@@ -43,6 +45,7 @@ class PostRequest extends FormRequest
             'title' => 'タイトル',
             'content' => '内容',
             'category_id' => 'カテゴリー',
+            'image' => '画像',
         ];
     }
 }

@@ -371,3 +371,68 @@ After
 
 #### コンポーネント分割の理由
 　コンポーネント分割は前提として再利用性やコードの複雑さ解消のために行う。今回は、フォーム（PostForm）・一覧（PostList）・投稿1件の表示（PostItem）に分けた。フォームはデータ保存の役割、一覧はデータを表示する役割で、それぞれ役割が異なるため、分けた。PostItemは1件ごとの処理に分けられるため分割した。
+
+### 10.week11/デプロイ手順とセキュリティグループの設計説明
+- デプロイ手順
+1. 概要
+Laravelで作成したアプリを、AWSのEC2・RDSを利用してデプロイする。
++ EC2:AWSが提供する仮想サーバー
++ RDS:AWSが管理するデータベースサービス
+2. デプロイ手順
+ - GitBashからSSHを利用してEC2に接続する。
+
+ ```bash
+ ssh -i 秘密鍵ファイル.pem ubuntu@EC2のElasticIP
+ ```
+
+ - Dockerのインストール
+ EC2上でDockerとDocker Composeをインストールし、利用できることを確認する
+ ```bash
+ docker --version
+ docker compose version
+ ```
+
+ - GitHubからアプリを取得
+ GitHubのリポジトリをEC2にクローンする。
+ ```bash
+ git clone GitHubリポジトリのURL
+ cd リポジトリ名
+ ```
+
+ - 環境変数の設定
+ Docker用とLaravel用の環境設定ファイルを作成する。
+ ```bash
+ cp .env.example .env
+ cp src/.env.example src/.env
+ ```
+ src/.env に以下の設定を行う。
+ + APP_URL：EC2のElastic IPを使用したURL
+ + DB_CONNECTION：mysql
+ + DB_HOST：RDSのエンドポイント
+ + DB_PORT=3306
+ + DB_DATABASE：laravel
+ + DB_USERNAME：RDSのユーザー名
+ + DB_PASSWORD：RDSのパスワード
+
+ - Docker Composeの設定変更
+ 本番環境ではデータベースにRDSを利用するため、docker-compose.ymlからdbサービスとphpmyadminサービスを削除する。
+ また、app サービスの depends_on から db の指定を削除する。
+
+ - コンテナの起動とLaravelの準備
+ ```bash
+ docker compose up -d
+ docker compose exec app composer install
+ docker run --rm -v "$(pwd)/src:/app" -w /app node:lts sh -c "npm ci && npm run build"
+ docker compose exec app php artisan key:generate
+ docker compose exec app php artisan migrate
+ ```
+
+ - 動作確認
+ ```bash
+ docker compose ps
+ ```
+ コンテナが起動していることを確認し、ブラウザから以下のURLにアクセスする。
+ http://EC2のElastic_IP
+ 
+- EC2用のセキュリティグループ設定理由
+SSHは自分のIPアドレスのみに開けている。SSHとは、パソコンからEC2にログインし、コマンドを実行するための仕組み。自分のIPアドレスに限定すれば、許可したIPアドレスからの接続しか受け入れない。不正アクセスのリスクを減らすために自分のIPアドレスのみにしている。HTTPは全部のIPアドレスを許可している。HTTPはWebサイトを表示するためのポートであるため、だれでもアクセスできるようにするから、全許可している。HTTPSはHTTPのより安全にWebサイトを表示するためのポートである。公開範囲はHTTPと同じ理由。

@@ -20,6 +20,8 @@ class Post extends Model
         'title',
         'content',
         'category_id',
+        // S3に保存した画像のパス。create($data) / update($data) でまとめて保存できるように追加
+        'image_path',
     ];
 
     /**

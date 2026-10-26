@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\Post;
 use App\Models\User;
 use App\Repositories\PostRepository;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 // Service: 投稿に関する処理の流れ（トランザクション・ログなど）を担当する
 class PostService
@@ -23,8 +25,11 @@ class PostService
     ) {}
 
     // $user が null の場合は投稿者なしで作成する（認証のない API から呼ばれる場合）
-    public function createPost(?User $user, array $data)
+    // $image は任意。デフォルトが null なので、画像を渡さない API 側の呼び出しはそのまま動く
+    public function createPost(?User $user, array $data, ?UploadedFile $image = null)
     {
+        $data = $this->uploadImage($data, $image);
+
         // DB::transaction(): この中の処理が全て成功すれば確定、途中でエラーが起きたら全て取り消す
         return DB::transaction(function () use ($user, $data) {
             $post = $user
@@ -37,8 +42,11 @@ class PostService
         });
     }
 
-    public function updatePost(Post $post, array $data)
+    // 新しい画像が選ばれたときだけ image_path を上書きする（選ばれなければ今の画像のまま）
+    public function updatePost(Post $post, array $data, ?UploadedFile $image = null)
     {
+        $data = $this->uploadImage($data, $image);
+
         return DB::transaction(function () use ($post, $data) {
             $updated = $this->postRepository->update($post, $data);
 
@@ -53,5 +61,21 @@ class PostService
         $this->postRepository->delete($post);
 
         Log::info('Post deleted', ['post_id' => $post->id]);
+    }
+
+    // 画像があればS3にアップロードし、返ってきた保存先パスを $data['image_path'] に入れる
+    // S3はDBではないのでトランザクションでは取り消せない。そのためDB処理の前（トランザクションの外）で行う
+    private function uploadImage(array $data, ?UploadedFile $image): array
+    {
+        // 'image' はファイルそのもの（UploadedFile）なので、DBに保存する $data からは外す
+        unset($data['image']);
+
+        if ($image) {
+            // put('images', ファイル): S3の images/ フォルダに、重複しないランダムなファイル名で保存する
+            // 戻り値は保存先のパス（例: images/aBcD1234.jpg）。URLではなくパスをDBに保存する
+            $data['image_path'] = Storage::disk('s3')->put('images', $image);
+        }
+
+        return $data;
     }
 }
