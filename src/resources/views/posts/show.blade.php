@@ -6,6 +6,11 @@
     <a href="{{ route('posts.index') }}" class="btn btn-link ps-0">&laquo; 一覧に戻る</a>
 
     <div class="card">
+        {{-- 画像がある投稿だけ表示する。DBにはパスだけ入っているので、url() でURLに変換して src に渡す --}}
+        @if ($post->image_path)
+            <img src="{{ Storage::disk('s3')->url($post->image_path) }}" alt="{{ $post->title }}"
+                 class="card-img-top">
+        @endif
         <div class="card-body">
             <span class="badge bg-secondary mb-2">{{ $post->category->name }}</span>
             <h1 class="card-title h2">{{ $post->title }}</h1>

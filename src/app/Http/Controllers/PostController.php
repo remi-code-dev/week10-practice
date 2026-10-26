@@ -44,7 +44,8 @@ class PostController extends Controller
      */
     public function store(PostRequest $request): RedirectResponse
     {
-        $post = $this->postService->createPost($request->user(), $request->validated());
+        // $request->file('image'): フォームで選ばれた画像ファイル（選ばれていなければ null）
+        $post = $this->postService->createPost($request->user(), $request->validated(), $request->file('image'));
 
         return redirect()
             ->route('posts.show', $post)
@@ -81,7 +82,7 @@ class PostController extends Controller
     {
         $this->authorize('update', $post);
 
-        $post = $this->postService->updatePost($post, $request->validated());
+        $post = $this->postService->updatePost($post, $request->validated(), $request->file('image'));
 
         return redirect()
             ->route('posts.show', $post)
