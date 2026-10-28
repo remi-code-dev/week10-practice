@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('supports', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('post_id')->constrained()->cascadeOnDelete();
-            $table->integer('amount');
-            $table->string('stripe_session_id')->unique();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();  // 応援した人
+            $table->foreignId('post_id')->constrained()->cascadeOnDelete();  // 応援した記事
+            $table->integer('amount');                                        // 金額（円）
+            $table->string('stripe_session_id')->unique(); 
             $table->timestamps();
         });
     }
