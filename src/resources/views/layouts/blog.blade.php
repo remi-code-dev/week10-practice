@@ -34,6 +34,13 @@
             </div>
         @endif
 
+        {{-- コントローラーの ->with('error', ...) で渡されたメッセージを赤色で表示する --}}
+        @if (session('error'))
+            <div class="alert alert-danger">
+                {{ session('error') }}
+            </div>
+        @endif
+
         @yield('content')
     </div>
 

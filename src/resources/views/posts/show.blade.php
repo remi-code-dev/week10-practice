@@ -26,6 +26,11 @@
         </div>
     </div>
 
+    {{-- 応援（Stripe）でエラーが起きたとき、コントローラーの withErrors(['payment' => ...]) の内容を表示する --}}
+    @error('payment')
+        <div class="alert alert-danger mt-3">{{ $message }}</div>
+    @enderror
+
     <div class="mt-3 d-flex gap-2">
         @auth
             <form method="POST" action="{{ route('supports.create', $post) }}">
