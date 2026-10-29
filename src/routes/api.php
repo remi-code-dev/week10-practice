@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\PostController;
+use App\Http\Controllers\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 // routes/api.php のルートには自動で /api プレフィックスが付く
@@ -13,3 +14,4 @@ Route::get('/posts', [PostController::class, 'index']);
 Route::post('/posts', [PostController::class, 'store']);
 Route::get('/posts/{id}', [PostController::class, 'show']);
 Route::get('/categories', [CategoryController::class, 'index']);
+Route::post('/webhook/stripe', [StripeWebhookController::class, 'handle']);
