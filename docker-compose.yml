@@ -11,7 +11,8 @@ services:
       - app
     networks:
       - app-network
-      # Mailpit（開発用のメール受信ツール）
+
+  # Mailpit（開発用のメール受信ツール）
   mailpit:
     image: axllent/mailpit:latest
     ports:
