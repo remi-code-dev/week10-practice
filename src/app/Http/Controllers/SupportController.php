@@ -89,15 +89,8 @@ class SupportController extends Controller
             return redirect()->route('posts.index')->with('error', '決済が完了していません');
         }
 
-        // 応援した履歴を保存する（同じ session_id なら二重に保存しない）
-        Support::firstOrCreate(
-            ['stripe_session_id' => $session->id],
-            [
-                'user_id' => $session->metadata->user_id,
-                'post_id' => $session->metadata->post_id,
-                'amount'  => $session->amount_total,  // 円の場合は、この値がそのまま金額（円）
-            ]
-        );
+        // 応援した履歴を保存する（Webhook で保存済みなら何もしない）
+        Support::recordFromCheckoutSession($session);
 
         return view('supports.success');
     }
