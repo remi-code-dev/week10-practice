@@ -436,3 +436,87 @@ Laravelで作成したアプリを、AWSのEC2・RDSを利用してデプロイ�
  
 - EC2用のセキュリティグループ設定理由
 SSHは自分のIPアドレスのみに開けている。SSHとは、パソコンからEC2にログインし、コマンドを実行するための仕組み。自分のIPアドレスに限定すれば、許可したIPアドレスからの接続しか受け入れない。不正アクセスのリスクを減らすために自分のIPアドレスのみにしている。HTTPは全部のIPアドレスを許可している。HTTPはWebサイトを表示するためのポートであるため、だれでもアクセスできるようにするから、全許可している。HTTPSはHTTPのより安全にWebサイトを表示するためのポートである。公開範囲はHTTPと同じ理由。
+
+### 11.week12/外部API(Stripe)を利用した機能のEC2へのデプロイ手順
+1. 概要
+week11でEC2・RDSにデプロイしたアプリに、Stripeを使った投げ銭(応援)機能を追加し、EC2上でも使えるようにする。
++ EC2 → Stripe：決済画面(Checkout Session)を作成する
++ Stripe → EC2：決済が完了したことをWebhookで通知する
+
+2. デプロイ手順
+ - EC2に接続し、EC2上に変更が残っていないか確認してから、最新のコードを取得する。
+ ```bash
+ ssh -i 秘密鍵ファイル.pem ubuntu@EC2のElasticIP
+ cd リポジトリ名
+ git status
+ git pull
+ git log --oneline -3
+ ```
+ git log で最新のコミットが取り込まれていることを確認する。
+
+ - Docker Composeの設定変更
+ week11と同じく、docker-compose.ymlからdbサービスとphpmyadminサービス、appサービスの depends_on の db を削除する。
+ また、appサービスの environment(DB_HOST=db など)を削除し、src/.env のRDSの設定が使われるようにする。
+
+ - Stripeのライブラリをインストールする。
+ ```bash
+ docker compose up -d
+ docker compose restart nginx
+ docker compose exec app composer install
+ ```
+
+ - src/.env にStripeのキーを設定する。
+ .env はGitで管理していないため、git pull では反映されない。EC2上で直接書き足す。
+ + STRIPE_KEY：公開可能キー(pk_test_から始まる)
+ + STRIPE_SECRET：シークレットキー(sk_test_から始まる)
+ + STRIPE_WEBHOOK_SECRET：Webhookの署名シークレット(whsec_から始まる。下のWebhookの登録で取得する)
+
+ - マイグレーションを実行し、応援履歴のテーブル(supports)を作成する。
+ ```bash
+ docker compose exec app php artisan migrate
+ ```
+
+ - StripeダッシュボードでWebhookの送信先を登録する。
+ ローカルではStripe CLIの stripe listen がWebhookを中継していたが、EC2はインターネットから直接アクセスできるため、StripeからEC2に直接送ってもらう。
+ + エンドポイントURL：http://EC2のElasticIP/api/webhook/stripe
+ + 受け取るイベント：checkout.session.completed
+ + 登録後に表示される署名シークレットを src/.env の STRIPE_WEBHOOK_SECRET に設定する
+ + 署名シークレットは送信先ごとに異なるため、stripe listen で表示された whsec_ とは別の値になる
+
+ - 設定を反映する。
+ ```bash
+ docker compose exec app php artisan config:clear
+ ```
+
+ - 動作確認
+ + ブラウザで記事の応援ボタンを押し、テストカード(4242 4242 4242 4242)で支払う
+ + 完了画面が表示されることを確認する
+ + Webhookが届いたことを確認する(Stripeダッシュボードの配信結果、またはNginxのログで200になっていること)
+ ```bash
+ docker compose logs nginx | grep webhook
+ ```
+
+3. つまずいた点と対処
+ - git pull しても最新のコードが取り込まれなかった
+ + 原因：week11でEC2上の docker-compose.yml を直接書き換えていた。week12でGitHub側の docker-compose.yml も変更したため、pullするとEC2での変更が上書きされて消えてしまう状態になり、Gitがpullを中止(Aborting)していた。pullの結果を確認せずに次の手順に進んだため、古いコードのまま作業していた。
+ + 対処：docker-compose.yml をバックアップしてから元に戻し、pullした後にEC2用の変更をやり直した。
+ ```bash
+ cp docker-compose.yml ~/docker-compose.yml.ec2-backup
+ git restore docker-compose.yml
+ git pull
+ ```
+
+ - DBに接続できなかった(Host: db)
+ + 原因：docker-compose.yml の app サービスの environment に DB_HOST=db が書かれており、src/.env のRDSの設定より優先されていた。week11ではこれも削除していたが、手順に書いていなかったため、やり直すときに抜けていた。
+ + 対処：environment を削除し、src/.env の設定を使うようにした。
+
+ - 502 Bad Gateway が表示された
+ + 原因：docker-compose.yml を変更したことで app コンテナが作り直され、IPアドレスが変わった。Nginxは起動時に調べた古いIPアドレスに接続しようとしていた。
+ + 対処：Nginxを再起動して、新しいIPアドレスを読み込ませた。
+ ```bash
+ docker compose restart nginx
+ ```
+
+4. 再発防止
+ - git pull の後は git log で最新のコミットが取り込まれたことを確認してから、次の手順に進む。
+ - 今後の改善として、EC2用の設定を docker-compose.prod.yml として別に作成してリポジトリに含めれば、EC2で docker-compose.yml を書き換える必要がなくなり、pullがぶつからなくなる。
