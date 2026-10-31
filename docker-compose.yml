@@ -12,6 +12,14 @@ services:
     networks:
       - app-network
 
+  # Mailpit（開発用のメール受信ツール）
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+    networks:
+      - app-network
+
   # PHP-FPM（アプリケーション）
   app:
     build:
@@ -64,3 +72,4 @@ volumes:
 networks:
   app-network:
     driver: bridge
+

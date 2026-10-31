@@ -26,7 +26,19 @@
         </div>
     </div>
 
+    {{-- 応援（Stripe）でエラーが起きたとき、コントローラーの withErrors(['payment' => ...]) の内容を表示する --}}
+    @error('payment')
+        <div class="alert alert-danger mt-3">{{ $message }}</div>
+    @enderror
+
     <div class="mt-3 d-flex gap-2">
+        @auth
+            <form method="POST" action="{{ route('supports.create', $post) }}">
+                @csrf
+                <button type="submit" class="btn btn-success">この記事の書き手を応援する</button>
+            </form>
+        @endauth
+
         @can('update', $post)
             <a href="{{ route('posts.edit', $post) }}" class="btn btn-primary">編集</a>
         @endcan
