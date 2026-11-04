@@ -520,3 +520,47 @@ week11でEC2・RDSにデプロイしたアプリに、Stripeを使った投げ�
 4. 再発防止
  - git pull の後は git log で最新のコミットが取り込まれたことを確認してから、次の手順に進む。
  - 今後の改善として、EC2用の設定を docker-compose.prod.yml として別に作成してリポジトリに含めれば、EC2で docker-compose.yml を書き換える必要がなくなり、pullがぶつからなくなる。
+
+5. 補足(レビュー後の改善)
+ - Webhookで2つのイベントを処理するように変更した。
+ + checkout.session.completed：応援履歴を保存し、支払いページのID(cs_から始まる)をログに記録する
+ + payment_intent.succeeded：決済ID(pi_から始まる)をログに記録する(練習課題2の内容)
+ + 1回の支払いで、Stripeから2つの通知が別々に届く。応援履歴を保存するのは checkout.session.completed のときだけなので、履歴が2回保存されることはない
+
+ - ローカルで確認するときは、stripe listen で転送するイベントを指定する(新しいStripe CLIでは --events などの指定が必要)。
+ ```bash
+ stripe listen --events checkout.session.completed,payment_intent.succeeded --forward-to localhost/api/webhook/stripe
+ ```
+
+ - EC2用の設定を docker-compose.prod.yml としてリポジトリに追加した。
+ + EC2で docker-compose.yml を直接書き換えなくてよくなり、git pull がぶつからなくなる
+ + db・phpmyadmin：RDSを使うため含めない
+ + mailpit：EC2では MAIL_MAILER=log でメールを laravel.log に書き出しており、使っていないため含めない
+ + nginx：EC2上のNginx(HTTPS・certbot)から転送を受けるため、127.0.0.1:8000 で待ち受ける
+
+ - EC2で docker-compose.prod.yml を使うように切り替える。
+ ```bash
+ cp docker-compose.yml ~/docker-compose.yml.ec2-backup
+ git restore docker-compose.yml
+ git pull
+ git log --oneline -3
+ echo "COMPOSE_FILE=docker-compose.prod.yml" >> .env
+ docker compose up -d --remove-orphans
+ docker compose restart nginx
+ docker compose ps
+ ```
+ + .env(プロジェクト直下)に COMPOSE_FILE を書くと、-f を付けなくても docker compose が docker-compose.prod.yml を使う
+ + --remove-orphans で、prod用のファイルに書いていないコンテナ(mailpit)を削除する
+ + 以降の手順にある「docker-compose.ymlからdbサービスなどを削除する」作業は不要になる
+
+ - HTTPS化に合わせて設定を変更した。
+ + src/.env：APP_URL=https://ドメイン に変更し、php artisan config:clear を実行する
+ + Stripeダッシュボードの送信先を編集し、エンドポイントURLを https://ドメイン/api/webhook/stripe に変更する
+ + 受け取るイベントに payment_intent.succeeded を追加する
+ + 送信先を「編集」した場合、署名シークレット(whsec_)は変わらないので STRIPE_WEBHOOK_SECRET の変更は不要
+
+ - つまずいた点と対処
+ + Stripeの配信結果が 301 になり、Webhookが届かなかった
+ + 原因：エンドポイントURLが http:// のままだった。EC2のNginxが https:// へリダイレクト(301)を返すが、Stripeはリダイレクトを追いかけないため、アプリまで届かなかった
+ + 対処：エンドポイントURLを https:// に直した
+ + 確認方法：Stripeダッシュボードの送信先のイベント配信で、ステータスコードを見る
