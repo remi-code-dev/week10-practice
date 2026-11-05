@@ -591,7 +591,8 @@ week11でEC2にデプロイしたアプリに独自ドメイン(rabblog.com)を�
  + HTTP/1.1 200 OK：HTTPSでアクセスして、ページを正常に返せた。
  + Server：応答したのはEC2上のNginx(HTTPSを受けて、Dockerのコンテナに転送している)。
  + Content-Type：返ってきた中身はHTMLのページ。
- + Set-Cookie の secure：HTTPSのときだけ送られるCookie。LaravelがHTTPSで通信していると正しく判断できている(trustProxies と APP_URL の設定が効いている)。
+ + Set-Cookie の secure：HTTPSのときだけ送られるCookie。LaravelがHTTPSで通信していると正しく判断できている。EC2のNginxからDockerのnginxへはhttpで転送しているが、EC2のNginxが付けた X-Forwarded-Proto(元はhttpsだったというメモ)を、trustProxies の設定でLaravelが信じているため。
+ + APP_URL は secure とは関係なく、artisan コマンドやキューでのメール送信など、ブラウザからのアクセスがない場面でURLを作るときに使われる。
 
  - sudo certbot certificates
  ```bash
