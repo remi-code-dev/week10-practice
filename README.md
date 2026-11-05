@@ -520,3 +520,181 @@ week11でEC2・RDSにデプロイしたアプリに、Stripeを使った投げ�
 4. 再発防止
  - git pull の後は git log で最新のコミットが取り込まれたことを確認してから、次の手順に進む。
  - 今後の改善として、EC2用の設定を docker-compose.prod.yml として別に作成してリポジトリに含めれば、EC2で docker-compose.yml を書き換える必要がなくなり、pullがぶつからなくなる。
+
+5. 補足(レビュー後の改善)
+ - Webhookで2つのイベントを処理するように変更した。
+ + checkout.session.completed：応援履歴を保存し、支払いページのID(cs_から始まる)をログに記録する
+ + payment_intent.succeeded：決済ID(pi_から始まる)をログに記録する(練習課題2の内容)
+ + 1回の支払いで、Stripeから2つの通知が別々に届く。応援履歴を保存するのは checkout.session.completed のときだけなので、履歴が2回保存されることはない
+
+ - ローカルで確認するときは、stripe listen で転送するイベントを指定する(新しいStripe CLIでは --events などの指定が必要)。
+ ```bash
+ stripe listen --events checkout.session.completed,payment_intent.succeeded --forward-to localhost/api/webhook/stripe
+ ```
+
+ - EC2用の設定を docker-compose.prod.yml としてリポジトリに追加した。
+ + EC2で docker-compose.yml を直接書き換えなくてよくなり、git pull がぶつからなくなる
+ + db・phpmyadmin：RDSを使うため含めない
+ + mailpit：EC2では MAIL_MAILER=log でメールを laravel.log に書き出しており、使っていないため含めない
+ + nginx：EC2上のNginx(HTTPS・certbot)から転送を受けるため、127.0.0.1:8000 で待ち受ける
+
+ - EC2で docker-compose.prod.yml を使うように切り替える。
+ ```bash
+ cp docker-compose.yml ~/docker-compose.yml.ec2-backup
+ git restore docker-compose.yml
+ git pull
+ git log --oneline -3
+ echo "COMPOSE_FILE=docker-compose.prod.yml" >> .env
+ docker compose up -d --remove-orphans
+ docker compose restart nginx
+ docker compose ps
+ ```
+ + .env(プロジェクト直下)に COMPOSE_FILE を書くと、-f を付けなくても docker compose が docker-compose.prod.yml を使う
+ + --remove-orphans で、prod用のファイルに書いていないコンテナ(mailpit)を削除する
+ + 以降の手順にある「docker-compose.ymlからdbサービスなどを削除する」作業は不要になる
+
+ - HTTPS化に合わせて設定を変更した。
+ + src/.env：APP_URL=https://ドメイン に変更し、php artisan config:clear を実行する
+ + Stripeダッシュボードの送信先を編集し、エンドポイントURLを https://ドメイン/api/webhook/stripe に変更する
+ + 受け取るイベントに payment_intent.succeeded を追加する
+ + 送信先を「編集」した場合、署名シークレット(whsec_)は変わらないので STRIPE_WEBHOOK_SECRET の変更は不要
+
+ - つまずいた点と対処
+ + Stripeの配信結果が 301 になり、Webhookが届かなかった
+ + 原因：エンドポイントURLが http:// のままだった。EC2のNginxが https:// へリダイレクト(301)を返すが、Stripeはリダイレクトを追いかけないため、アプリまで届かなかった
+ + 対処：エンドポイントURLを https:// に直した
+ + 確認方法：Stripeダッシュボードの送信先のイベント配信で、ステータスコードを見る
+
+### 12.week13/独自ドメインとHTTPSの設定
+1. 概要
+week11でEC2にデプロイしたアプリに独自ドメイン(rabblog.com)を設定し、Let's Encrypt の証明書でHTTPS化した。
++ 公開URL：https://rabblog.com
+
+2. コマンドでの動作確認
+ - dig rabblog.com +short
+ ```bash
+ $ dig rabblog.com +short
+ 13.158.15.78
+ ```
+ + EC2のElastic IP(13.158.15.78)が返ってきた。
+ + ドメイン名がEC2のIPアドレスに結びついており、Route 53 のAレコードが反映されていることを意味する。
+
+ - curl -I https://rabblog.com
+ ```bash
+ $ curl -I https://rabblog.com
+ HTTP/1.1 200 OK
+ Server: nginx/1.28.3 (Ubuntu)
+ Content-Type: text/html; charset=utf-8
+ Set-Cookie: XSRF-TOKEN=...; secure; samesite=lax
+ Set-Cookie: laravel-session=...; secure; httponly; samesite=lax
+ ```
+ + HTTP/1.1 200 OK：HTTPSでアクセスして、ページを正常に返せた。
+ + Server：応答したのはEC2上のNginx(HTTPSを受けて、Dockerのコンテナに転送している)。
+ + Content-Type：返ってきた中身はHTMLのページ。
+ + Set-Cookie の secure：HTTPSのときだけ送られるCookie。LaravelがHTTPSで通信していると正しく判断できている(trustProxies と APP_URL の設定が効いている)。
+
+ - sudo certbot certificates
+ ```bash
+ $ sudo certbot certificates
+   Certificate Name: rabblog.com
+     Domains: rabblog.com www.rabblog.com
+     Expiry Date: 2027-02-01 11:55:21+00:00 (VALID: 89 days)
+ ```
+ + Domains：証明書は rabblog.com と www.rabblog.com の両方で使える。
+ + Expiry Date：有効期限は2027年2月1日で、残り89日。Let's Encrypt の証明書は90日で期限が切れる。
+
+ - 自動更新の設定の確認
+ ```bash
+ $ systemctl list-timers | grep certbot
+ Wed 2026-11-04 10:42:08 UTC  6h  Tue 2026-11-03 12:51:52 UTC  -  certbot.timer  certbot.service
+ ```
+ + certbot.timer が登録されており、1日2回 certbot が自動で実行される。期限が近づく(残り30日ほど)と、証明書が自動で更新される。
+ + sudo certbot renew --dry-run(更新できるかの練習)は、EC2から Let's Encrypt の練習用サーバー(staging)につながらず失敗した(Connection reset by peer)。本番のサーバーには curl でつながることを確認した。時間をおいて再確認する。
+
+3. wwwなし・ありの統一
+ - www.rabblog.com にアクセスしても、https://rabblog.com(wwwなし)に移動(301リダイレクト)するように、EC2上のNginxの設定(/etc/nginx/sites-available/myapp.conf)を変更した。
+ - 変更前の問題
+ + HTTPSの設定で rabblog.com と www.rabblog.com の両方を受け付けていたため、https://www.rabblog.com でも www 付きのままページが表示されていた。
+ + HTTPの設定は return 301 https://$host$request_uri; になっていた。$host にはアクセスした人が入力したドメイン名がそのまま入るため、http://www.rabblog.com は https://www.rabblog.com に移動し、www が残っていた。
+ - 変更後の設定(server のかたまりを3つに分けた)
+ ```nginx
+ # ① HTTPS（wwwなし）：Dockerのnginxコンテナに転送する
+ server {
+     listen 443 ssl; # managed by Certbot
+     server_name rabblog.com;
+
+     ssl_certificate /etc/letsencrypt/live/rabblog.com/fullchain.pem; # managed by Certbot
+     ssl_certificate_key /etc/letsencrypt/live/rabblog.com/privkey.pem; # managed by Certbot
+     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+     location / {
+         proxy_pass         http://127.0.0.1:8000;  # Dockerのnginxコンテナ（docker-compose.prod.yml の "127.0.0.1:8000:80"）
+         proxy_http_version 1.1;
+         proxy_set_header   Host $host;
+         proxy_set_header   X-Real-IP $remote_addr;
+         proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+         proxy_set_header   X-Forwarded-Proto $scheme;
+     }
+ }
+
+ # ② HTTPS（wwwあり）：wwwなしに移動させる
+ server {
+     listen 443 ssl;
+     server_name www.rabblog.com;
+
+     ssl_certificate /etc/letsencrypt/live/rabblog.com/fullchain.pem;
+     ssl_certificate_key /etc/letsencrypt/live/rabblog.com/privkey.pem;
+     include /etc/letsencrypt/options-ssl-nginx.conf;
+     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+     return 301 https://rabblog.com$request_uri;
+ }
+
+ # ③ HTTP：すべて https://rabblog.com に移動させる
+ server {
+     listen 80;
+     server_name rabblog.com www.rabblog.com;
+
+     return 301 https://rabblog.com$request_uri;
+ }
+ ```
+ + ①：wwwなしのHTTPSだけを受け付け、Dockerのnginxコンテナ(127.0.0.1:8000)に転送する。
+ + ②：wwwありのHTTPSを受け付け、https://rabblog.com に移動させる。移動させる返事もHTTPSの通信で返すため、証明書の設定が必要。証明書は www.rabblog.com にも使えるもの(certbot certificates の Domains で確認)なので、①と同じ証明書を使う。
+ + ③：HTTPで来たアクセスをすべて https://rabblog.com に移動させる。移動先を $host ではなく rabblog.com と直接書くことで、www が残らないようにした。
+ + $request_uri は /posts/1 のようなドメインより後ろの部分。これを付けることで、移動してもアクセスしたページが変わらない。
+
+ - 設定の反映
+ ```bash
+ sudo cp /etc/nginx/sites-available/myapp.conf ~/myapp.conf.backup   # バックアップ
+ sudo nano /etc/nginx/sites-available/myapp.conf                     # 編集
+ sudo nginx -t                                                       # 設定の文法チェック
+ sudo systemctl reload nginx                                         # Nginxを止めずに設定を読み込み直す
+ ```
+
+ - 動作確認
+ ```bash
+ $ curl -I https://www.rabblog.com
+ HTTP/1.1 301 Moved Permanently
+ Location: https://rabblog.com/
+
+ $ curl -I http://www.rabblog.com
+ HTTP/1.1 301 Moved Permanently
+ Location: https://rabblog.com/
+
+ $ curl -I http://rabblog.com
+ HTTP/1.1 301 Moved Permanently
+ Location: https://rabblog.com/
+ ```
+ + 3つとも 301(恒久的な移動)が返り、移動先(Location)が https://rabblog.com/ になっている。
+ + ブラウザで www.rabblog.com を開くと https://rabblog.com に変わり、鍵マークが表示され、ログイン画面なども崩れずに表示されることを確認した。
+
+4. つまずいた点と対処
+ - sudo nginx -t で "server" directive is not allowed here のエラーが出た
+ + 原因：nanoに設定をまとめて貼り付けたときに、行の順番がずれていた(server { の途中に別の server { が入り込んでいた)。
+ + 対処：中身を全部消してから、server のかたまりを1つずつ貼り付け、そのたびに sudo cat -n で行番号付きで確認した。
+ + nginx -t は文法のチェックだけで設定は反映されないため、エラーが出てもサイトは動いたままだった。必ず reload の前に nginx -t を実行する。
+
+ - Stripeの配信結果が 301 になり、Webhookが届かなかった
+ + 原因：Stripeに登録したエンドポイントURLが http:// のままだった。Nginxが https:// へ移動(301)を返すが、Stripeは移動先を追いかけないため、アプリまで届かなかった。
+ + 対処：エンドポイントURLを https://rabblog.com/api/webhook/stripe に直した。

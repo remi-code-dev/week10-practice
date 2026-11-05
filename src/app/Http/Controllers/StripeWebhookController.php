@@ -31,8 +31,12 @@ class StripeWebhookController extends Controller
             if ($session->payment_status === 'paid') {
                 // ブラウザを閉じて完了ページが開かれなくても、ここで応援した履歴が残る
                 Support::recordFromCheckoutSession($session);
-                Log::info('決済完了: ' . $session->id);
+                Log::info('Checkout完了: ' . $session->id); // cs_ から始まる支払いページのID
             }
+        } elseif ($event->type === 'payment_intent.succeeded') {
+            // 練習課題2：お金のやりとりが成功したら、決済IDをログに記録する
+            $paymentIntent = $event->data->object;
+            Log::info('決済完了: ' . $paymentIntent->id); // pi_ から始まる決済ID
         }
 
         return response('OK', 200);
