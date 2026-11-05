@@ -328,7 +328,7 @@ cd ..
   - ログイン: http://localhost/login(上記のテストユーザー、または `/register` で登録したユーザー)
 - phpMyAdmin: http://localhost:8080(サーバ: `db`、ユーザー: `root`)
 
-パスワードリセットのメールは送信されず、`MAIL_MAILER=log` により `src/storage/logs/laravel.log` に出力されます。
+パスワードリセットなどのメールは、`MAIL_MAILER=smtp` により Mailpit に送られます。http://localhost:8025 で確認できます。
 
 ### 7. テストの実行
 
