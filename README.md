@@ -610,7 +610,16 @@ week11でEC2にデプロイしたアプリに独自ドメイン(rabblog.com)を�
  Wed 2026-11-04 10:42:08 UTC  6h  Tue 2026-11-03 12:51:52 UTC  -  certbot.timer  certbot.service
  ```
  + certbot.timer が登録されており、1日2回 certbot が自動で実行される。期限が近づく(残り30日ほど)と、証明書が自動で更新される。
- + sudo certbot renew --dry-run(更新できるかの練習)は、EC2から Let's Encrypt の練習用サーバー(staging)につながらず失敗した(Connection reset by peer)。本番のサーバーには curl でつながることを確認した。時間をおいて再確認する。
+
+ - sudo certbot renew --dry-run
+ ```bash
+ $ sudo certbot renew --dry-run
+ Simulating renewal of an existing certificate for rabblog.com and www.rabblog.com
+ Congratulations, all simulated renewals succeeded:
+   /etc/letsencrypt/live/rabblog.com/fullchain.pem (success)
+ ```
+ + 証明書を実際には更新せず、更新できるかどうかを練習用のサーバー(staging)で試した。rabblog.com と www.rabblog.com の両方とも成功し、期限の前に自動で更新できることを確認した。
+ + 1回目は、EC2から練習用のサーバーにつながらず失敗した(Connection reset by peer)。本番のサーバーには curl でつながることを確認し、翌日に再実行したところ成功した。
 
 3. wwwなし・ありの統一
  - www.rabblog.com にアクセスしても、https://rabblog.com(wwwなし)に移動(301リダイレクト)するように、EC2上のNginxの設定(/etc/nginx/sites-available/myapp.conf)を変更した。
