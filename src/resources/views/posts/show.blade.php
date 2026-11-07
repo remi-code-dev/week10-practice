@@ -33,6 +33,11 @@
 
     <div class="mt-3 d-flex gap-2">
         @auth
+            <form method="POST" action="{{ route('likes.toggle', $post) }}">
+                @csrf
+                <button type="submit" class="btn btn-outline-danger">いいね {{ $post->likedUsers()->count() }}</button>
+            </form>
+
             <form method="POST" action="{{ route('supports.create', $post) }}">
                 @csrf
                 <button type="submit" class="btn btn-success">この記事の書き手を応援する</button>
