@@ -27,6 +27,33 @@ class PostTest extends TestCase
             ->assertSee($post->title);
     }
 
+    // 詳細画面：投稿のタイトルと本文が表示される
+    public function test_user_can_view_post_detail(): void
+    {
+        $post = Post::factory()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->get("/posts/{$post->id}")
+            ->assertOk()
+            ->assertSee($post->title)
+            ->assertSee($post->content);
+    }
+
+    // TC-10（境界値）：タイトル256文字はバリデーションエラーになる
+    public function test_title_of_256_characters_is_rejected(): void
+    {
+        $category = Category::factory()->create();
+
+        $response = $this->actingAs(User::factory()->create())->post('/posts', [
+            'title'       => str_repeat('a', 256),
+            'content'     => '本文',
+            'category_id' => $category->id,
+        ]);
+
+        $response->assertSessionHasErrors(['title']);
+        $this->assertDatabaseCount('posts', 0);
+    }
+
     public function test_created_post_belongs_to_logged_in_user(): void
     {
         $user = User::factory()->create();
