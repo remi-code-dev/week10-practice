@@ -13,6 +13,9 @@ RUN apt-get update && apt-get install -y \
 # PHP拡張機能をインストール
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
+# カバレッジ測定用のPCOVをインストール
+RUN pecl install pcov && docker-php-ext-enable pcov
+
 # Composerをインストール
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
