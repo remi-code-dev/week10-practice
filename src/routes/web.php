@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\LikeController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\SupportController;
 use Illuminate\Support\Facades\Route;
@@ -46,6 +47,9 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::resource('posts', PostController::class);
+
+    // いいね
+    Route::post('/posts/{post}/like', [LikeController::class, 'toggle'])->name('likes.toggle');
 
     // 投げ銭（Stripe 決済）
     Route::post('/posts/{post}/support', [SupportController::class, 'create'])->name('supports.create');

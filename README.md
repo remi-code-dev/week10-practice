@@ -328,7 +328,7 @@ cd ..
   - ログイン: http://localhost/login(上記のテストユーザー、または `/register` で登録したユーザー)
 - phpMyAdmin: http://localhost:8080(サーバ: `db`、ユーザー: `root`)
 
-パスワードリセットのメールは送信されず、`MAIL_MAILER=log` により `src/storage/logs/laravel.log` に出力されます。
+パスワードリセットなどのメールは、`MAIL_MAILER=smtp` により Mailpit に送られます。http://localhost:8025 で確認できます。
 
 ### 7. テストの実行
 
@@ -591,7 +591,8 @@ week11でEC2にデプロイしたアプリに独自ドメイン(rabblog.com)を�
  + HTTP/1.1 200 OK：HTTPSでアクセスして、ページを正常に返せた。
  + Server：応答したのはEC2上のNginx(HTTPSを受けて、Dockerのコンテナに転送している)。
  + Content-Type：返ってきた中身はHTMLのページ。
- + Set-Cookie の secure：HTTPSのときだけ送られるCookie。LaravelがHTTPSで通信していると正しく判断できている(trustProxies と APP_URL の設定が効いている)。
+ + Set-Cookie の secure：HTTPSのときだけ送られるCookie。LaravelがHTTPSで通信していると正しく判断できている。EC2のNginxからDockerのnginxへはhttpで転送しているが、EC2のNginxが付けた X-Forwarded-Proto(元はhttpsだったというメモ)を、trustProxies の設定でLaravelが信じているため。
+ + APP_URL は secure とは関係なく、artisan コマンドやキューでのメール送信など、ブラウザからのアクセスがない場面でURLを作るときに使われる。
 
  - sudo certbot certificates
  ```bash
@@ -609,7 +610,16 @@ week11でEC2にデプロイしたアプリに独自ドメイン(rabblog.com)を�
  Wed 2026-11-04 10:42:08 UTC  6h  Tue 2026-11-03 12:51:52 UTC  -  certbot.timer  certbot.service
  ```
  + certbot.timer が登録されており、1日2回 certbot が自動で実行される。期限が近づく(残り30日ほど)と、証明書が自動で更新される。
- + sudo certbot renew --dry-run(更新できるかの練習)は、EC2から Let's Encrypt の練習用サーバー(staging)につながらず失敗した(Connection reset by peer)。本番のサーバーには curl でつながることを確認した。時間をおいて再確認する。
+
+ - sudo certbot renew --dry-run
+ ```bash
+ $ sudo certbot renew --dry-run
+ Simulating renewal of an existing certificate for rabblog.com and www.rabblog.com
+ Congratulations, all simulated renewals succeeded:
+   /etc/letsencrypt/live/rabblog.com/fullchain.pem (success)
+ ```
+ + 証明書を実際には更新せず、更新できるかどうかを練習用のサーバー(staging)で試した。rabblog.com と www.rabblog.com の両方とも成功し、期限の前に自動で更新できることを確認した。
+ + 1回目は、EC2から練習用のサーバーにつながらず失敗した(Connection reset by peer)。本番のサーバーには curl でつながることを確認し、翌日に再実行したところ成功した。
 
 3. wwwなし・ありの統一
  - www.rabblog.com にアクセスしても、https://rabblog.com(wwwなし)に移動(301リダイレクト)するように、EC2上のNginxの設定(/etc/nginx/sites-available/myapp.conf)を変更した。
