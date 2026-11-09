@@ -146,6 +146,7 @@ class PostServiceTest extends TestCase
 
         // ③ 確認
         $this->assertNotEquals('images/old.jpg', $updated->image_path);
+        Storage::disk('s3')->assertExists($updated->image_path);
     }
 
     // TC-08：投稿がDBから消える
