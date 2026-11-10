@@ -22,7 +22,8 @@ class PostService
     //   }
     public function __construct(
         private PostRepository $postRepository
-    ) {}
+    ) {
+    }
 
     // $user が null の場合は投稿者なしで作成する（認証のない API から呼ばれる場合）
     // $image は任意。デフォルトが null なので、画像を渡さない API 側の呼び出しはそのまま動く

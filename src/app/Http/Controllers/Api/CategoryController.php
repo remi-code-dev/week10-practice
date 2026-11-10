@@ -10,7 +10,8 @@ class CategoryController extends Controller
 {
     public function __construct(
         private CategoryRepository $categoryRepository,
-    ) {}
+    ) {
+    }
 
     // 投稿フォームのセレクトボックス用
     public function index()

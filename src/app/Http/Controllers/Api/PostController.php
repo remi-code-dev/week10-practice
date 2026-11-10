@@ -14,7 +14,8 @@ class PostController extends Controller
     public function __construct(
         private PostService $postService,
         private PostRepository $postRepository,
-    ) {}
+    ) {
+    }
 
     public function index()
     {
