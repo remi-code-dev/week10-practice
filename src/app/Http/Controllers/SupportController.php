@@ -6,12 +6,12 @@ use App\Models\Post;
 use App\Models\Support;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Stripe\Stripe;
 use Stripe\Checkout\Session;
 use Stripe\Exception\ApiConnectionException;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\AuthenticationException;
 use Stripe\Exception\InvalidRequestException;
+use Stripe\Stripe;
 
 class SupportController extends Controller
 {
@@ -34,7 +34,7 @@ class SupportController extends Controller
                 ]],
                 'mode'        => 'payment',
                 // 決済が終わったあとで「どの記事を・誰が応援したか」が分かるように、Stripe に一緒に預けておく
-                'metadata'    => ['post_id' => $post->id, 'user_id' => auth()->id()],
+                'metadata'    => ['post_id' => (string) $post->id, 'user_id' => (string) auth()->id()],
                 'success_url' => route('supports.success') . '?session_id={CHECKOUT_SESSION_ID}',
                 'cancel_url'  => route('posts.show', $post),
             ]);

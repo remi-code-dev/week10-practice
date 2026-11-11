@@ -17,7 +17,8 @@ class PostController extends Controller
         private PostService $postService,
         private PostRepository $postRepository,
         private CategoryRepository $categoryRepository
-    ) {}
+    ) {
+    }
 
     /**
      * 投稿一覧表示（ページネーション付き）

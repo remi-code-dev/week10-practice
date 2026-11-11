@@ -39,6 +39,25 @@ class PostTest extends TestCase
             ->assertSee($post->content);
     }
 
+    // TC-11（境界値）：タイトル255文字は保存できる
+    public function test_title_of_255_characters_is_accepted(): void
+    {
+        // ① 準備
+        $category = Category::factory()->create();
+        $title = str_repeat('a', 255);
+
+        // ② 実行
+        $response = $this->actingAs(User::factory()->create())->post('/posts', [
+            'title'       => $title,
+            'content'     => '本文',
+            'category_id' => $category->id,
+        ]);
+
+        // ③ 確認
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('posts', ['title' => $title]);
+    }
+
     // TC-10（境界値）：タイトル256文字はバリデーションエラーになる
     public function test_title_of_256_characters_is_rejected(): void
     {

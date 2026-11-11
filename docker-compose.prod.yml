@@ -7,6 +7,7 @@ services:
   # EC2上のNginx（HTTPS・certbot）から 127.0.0.1:8000 に転送される
   nginx:
     image: nginx:latest
+    restart: always
     ports:
       - "127.0.0.1:8000:80"
     volumes:
@@ -23,6 +24,7 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
+    restart: always
     volumes:
       - ./src:/var/www/html
     networks:
