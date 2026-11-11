@@ -19,7 +19,8 @@ class VerifyEmailController extends Controller
         }
 
         if ($request->user()->markEmailAsVerified()) {
-            event(new Verified($request->user()));
+            // メール認証は使っていない（User は MustVerifyEmail を実装していない）ため、Breeze が生成したこの行はチェックしない
+            event(new Verified($request->user())); // @phpstan-ignore argument.type
         }
 
         return redirect()->intended(route('dashboard', absolute: false).'?verified=1');

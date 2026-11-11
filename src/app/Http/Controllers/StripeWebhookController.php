@@ -25,6 +25,7 @@ class StripeWebhookController extends Controller
 
         // イベントの種類に応じて処理を分岐
         if ($event->type === 'checkout.session.completed') {
+            /** @var \Stripe\Checkout\Session $session */
             $session = $event->data->object;
 
             // 支払いが済んでいるときだけ記録する

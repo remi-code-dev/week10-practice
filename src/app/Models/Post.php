@@ -15,7 +15,7 @@ class Post extends Model
     /**
      * マスアサインメント可能な属性
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $fillable = [
         'title',
