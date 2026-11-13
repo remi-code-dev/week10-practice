@@ -135,6 +135,8 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            # 途中でエラーが出たら、そこで止めて「失敗」にする（エラーを見逃さないため）
+            set -e
             cd ~/week10-practice
             # docker-compose.prod.yml・prod.conf を最新にする
             git pull origin main
