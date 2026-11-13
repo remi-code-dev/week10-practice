@@ -1,34 +1,46 @@
 # EC2（本番）用の設定
 # 使い方：EC2のプロジェクト直下の .env に「COMPOSE_FILE=docker-compose.prod.yml」と書く
+# Docker Hub のイメージを使う。IMAGE_TAG でバージョンを切り替えられる（ロールバック用）
+#   例：IMAGE_TAG=abc1234 docker compose -f docker-compose.prod.yml up -d
 # DBはRDSを使うため、db・phpmyadmin は含めない
-# メールは MAIL_MAILER=log で laravel.log に書き出すため、mailpit も含めない
+# メールは MAIL_MAILER=log でログに書き出すため、mailpit も含めない
 services:
+  # PHP-FPM（アプリケーション）
+  app:
+    image: remicodedev/myapp:${IMAGE_TAG:-latest}
+    restart: always
+    env_file:
+      - .env.production        # APP_KEY・DB_HOST（RDS）などはここに書く（Gitにはコミットしない）
+    environment:
+      - LOG_CHANNEL=stderr     # Laravelのログを Docker に渡して、nginx のログと一緒に管理する
+    volumes:
+      - storage:/var/www/html/storage
+    logging: &default-logging
+      driver: "json-file"
+      options:
+        max-size: "10m"        # 1ファイル10MBまで
+        max-file: "3"          # 3ファイルまで（古いものから消える）
+    networks:
+      - app-network
+
   # Nginx（Webサーバー）
   # EC2上のNginx（HTTPS・certbot）から 127.0.0.1:8000 に転送される
+  # public/ はイメージ（myapp-web）に入っている
   nginx:
-    image: nginx:latest
+    image: remicodedev/myapp-web:${IMAGE_TAG:-latest}
     restart: always
     ports:
       - "127.0.0.1:8000:80"
     volumes:
-      - ./src:/var/www/html
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - app
+    logging: *default-logging  # app と同じログの設定を使う
     networks:
       - app-network
 
-  # PHP-FPM（アプリケーション）
-  # DBの接続先は src/.env のRDSの設定を使う
-  app:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-    restart: always
-    volumes:
-      - ./src:/var/www/html
-    networks:
-      - app-network
+volumes:
+  storage:
 
 # 仮想ネットワーク（同じネットワーク内のコンテナはサービス名で通信できる）
 networks:

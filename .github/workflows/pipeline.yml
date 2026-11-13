@@ -71,8 +71,8 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: password
 
-  # ステップ3: デプロイ（test が成功し、mainブランチのときだけ動く）
-  deploy:
+  # ステップ3: Dockerイメージをビルドして Docker Hub に push（test が成功し、mainブランチのときだけ動く）
+  build-and-push:
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main'
@@ -80,7 +80,55 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to server
+      - name: Docker Hubにログイン
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # タグ：コミットSHA（例: abc1234）と latest
+      - name: appイメージのタグを生成
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/myapp
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: appイメージをビルドしてpush
+        uses: docker/build-push-action@v5
+        with:
+          context: .   # リポジトリ直下（Dockerfile の COPY で src/ を指定している）
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+
+      # Nginx用イメージにも app と同じタグを付ける（ロールバックで両方そろって切り替わる）
+      - name: Nginx用イメージのタグを生成（appと同じルール）
+        id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/myapp-web
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Nginx用イメージ（public/ 入り）をビルドしてpush
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: web
+          push: true
+          tags: ${{ steps.meta-web.outputs.tags }}
+
+  # ステップ4: デプロイ（EC2は Docker Hub から新しいイメージを pull して起動するだけ）
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: EC2にSSH接続して新しいイメージをデプロイ
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -88,13 +136,14 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd ~/week10-practice
+            # docker-compose.prod.yml・prod.conf を最新にする
             git pull origin main
-            # 本番用の構成で起動（開発用の db・phpmyadmin が動いていれば --remove-orphans で止めて削除する）
-            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
-            docker compose -f docker-compose.prod.yml exec -T app composer install --no-dev --optimize-autoloader
+            # Docker Hub から新しいイメージを取ってきて起動（古い構成のコンテナは --remove-orphans で削除）
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker compose -f docker-compose.prod.yml exec -T app php artisan migrate --force
-            # public/build はGitに含まれないので、Node.jsのコンテナでビルドする
-            docker run --rm -v "$(pwd)/src:/app" -w /app node:22 sh -c "npm ci && npm run build"
             docker compose -f docker-compose.prod.yml exec -T app php artisan config:cache
             docker compose -f docker-compose.prod.yml exec -T app php artisan route:cache
             docker compose -f docker-compose.prod.yml exec -T app php artisan view:cache
+            # 使わなくなった古いイメージを削除して、EC2の容量を空ける
+            docker image prune -f
