@@ -14,7 +14,11 @@ class EventController extends Controller
      */
     public function index(): View
     {
-        $events = Event::orderBy('starts_at')->paginate(10);
+        // 各イベントの予約人数（キャンセル済みを除く）を、SQL 1回でまとめて合計する（N+1 対策）
+        $events = Event::withSum(
+            ['reservations' => fn ($query) => $query->whereNull('cancelled_at')],
+            'guests'
+        )->orderBy('starts_at')->paginate(10);
 
         return view('events.index', compact('events'));
     }
