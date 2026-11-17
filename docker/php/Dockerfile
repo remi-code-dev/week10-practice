@@ -5,12 +5,15 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     libpng-dev \
+    libjpeg62-turbo-dev \
+    libwebp-dev \
     libonig-dev \
     libxml2-dev \
     zip \
     unzip
 
-# PHP拡張機能をインストール
+# GDをJPEG・WebP対応で設定してから、PHP拡張機能をインストール
+RUN docker-php-ext-configure gd --with-jpeg --with-webp
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
 # カバレッジ測定用のPCOVをインストール
