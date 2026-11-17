@@ -30,7 +30,7 @@ class Event extends Model
     {
         // まとめて取った合計（withSum）があればそれを使い、なければ今まで通りSQLで数える
         $reserved = array_key_exists('reservations_sum_guests', $this->attributes)
-            ? (int) $this->reservations_sum_guests
+            ? (int) $this->attributes['reservations_sum_guests']
             : (int) $this->reservations()->whereNull('cancelled_at')->sum('guests');
 
         return max(0, $this->capacity - $reserved);

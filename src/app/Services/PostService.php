@@ -6,6 +6,7 @@ use App\Models\Post;
 use App\Models\User;
 use App\Repositories\PostRepository;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -32,7 +33,7 @@ class PostService
         $data = $this->uploadImage($data, $image);
 
         // DB::transaction(): この中の処理が全て成功すれば確定、途中でエラーが起きたら全て取り消す
-        return DB::transaction(function () use ($user, $data) {
+        $post = DB::transaction(function () use ($user, $data) {
             $post = $user
                 ? $this->postRepository->createForUser($user, $data)
                 : $this->postRepository->create($data);
@@ -41,6 +42,11 @@ class PostService
 
             return $post;
         });
+
+        // 投稿一覧のキャッシュを消す（次に一覧を開いたとき、新しい投稿が表示されるように）
+        Cache::tags('posts')->flush();
+
+        return $post;
     }
 
     // 新しい画像が選ばれたときだけ image_path を上書きする（選ばれなければ今の画像のまま）
@@ -48,18 +54,26 @@ class PostService
     {
         $data = $this->uploadImage($data, $image);
 
-        return DB::transaction(function () use ($post, $data) {
+        $updated = DB::transaction(function () use ($post, $data) {
             $updated = $this->postRepository->update($post, $data);
 
             Log::info('Post updated', ['post_id' => $updated->id]);
 
             return $updated;
         });
+
+        // 投稿一覧のキャッシュを消す（タイトルやカテゴリーの変更が一覧に反映されるように）
+        Cache::tags('posts')->flush();
+
+        return $updated;
     }
 
     public function deletePost(Post $post)
     {
         $this->postRepository->delete($post);
+
+        // 投稿一覧のキャッシュを消す（削除した投稿が一覧に残らないように）
+        Cache::tags('posts')->flush();
 
         Log::info('Post deleted', ['post_id' => $post->id]);
     }
