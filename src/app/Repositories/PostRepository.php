@@ -4,16 +4,22 @@ namespace App\Repositories;
 
 use App\Models\Post;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 
 // Repository: データの取得・保存（Eloquentの操作）だけを担当する
 class PostRepository
 {
     // 全件取得（カテゴリー付き・最新順・ページネーション付き）
+    // ページごとに10分間キャッシュする（投稿の作成・更新・削除のときに PostService で消す）
     public function getAll()
     {
-        return Post::with('category')
-            ->latest()
-            ->paginate(10);
+        $page = request()->integer('page', 1);
+
+        return Cache::tags('posts')->remember("posts.index.page.{$page}", now()->addMinutes(10), function () {
+            return Post::with('category')
+                ->latest()
+                ->paginate(10);
+        });
     }
 
     // 全件取得（投稿者付き・最新順）。API の一覧用

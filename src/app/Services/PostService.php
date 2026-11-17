@@ -6,9 +6,11 @@ use App\Models\Post;
 use App\Models\User;
 use App\Repositories\PostRepository;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 // Service: 投稿に関する処理の流れ（トランザクション・ログなど）を担当する
 class PostService
@@ -32,7 +34,7 @@ class PostService
         $data = $this->uploadImage($data, $image);
 
         // DB::transaction(): この中の処理が全て成功すれば確定、途中でエラーが起きたら全て取り消す
-        return DB::transaction(function () use ($user, $data) {
+        $post = DB::transaction(function () use ($user, $data) {
             $post = $user
                 ? $this->postRepository->createForUser($user, $data)
                 : $this->postRepository->create($data);
@@ -41,6 +43,11 @@ class PostService
 
             return $post;
         });
+
+        // 投稿一覧のキャッシュを消す（次に一覧を開いたとき、新しい投稿が表示されるように）
+        Cache::tags('posts')->flush();
+
+        return $post;
     }
 
     // 新しい画像が選ばれたときだけ image_path を上書きする（選ばれなければ今の画像のまま）
@@ -48,23 +55,31 @@ class PostService
     {
         $data = $this->uploadImage($data, $image);
 
-        return DB::transaction(function () use ($post, $data) {
+        $updated = DB::transaction(function () use ($post, $data) {
             $updated = $this->postRepository->update($post, $data);
 
             Log::info('Post updated', ['post_id' => $updated->id]);
 
             return $updated;
         });
+
+        // 投稿一覧のキャッシュを消す（タイトルやカテゴリーの変更が一覧に反映されるように）
+        Cache::tags('posts')->flush();
+
+        return $updated;
     }
 
     public function deletePost(Post $post)
     {
         $this->postRepository->delete($post);
 
+        // 投稿一覧のキャッシュを消す（削除した投稿が一覧に残らないように）
+        Cache::tags('posts')->flush();
+
         Log::info('Post deleted', ['post_id' => $post->id]);
     }
 
-    // 画像があればS3にアップロードし、返ってきた保存先パスを $data['image_path'] に入れる
+    // 画像があればWebPに変換してS3にアップロードし、保存先パスを $data['image_path'] に入れる
     // S3はDBではないのでトランザクションでは取り消せない。そのためDB処理の前（トランザクションの外）で行う
     private function uploadImage(array $data, ?UploadedFile $image): array
     {
@@ -72,9 +87,20 @@ class PostService
         unset($data['image']);
 
         if ($image) {
-            // put('images', ファイル): S3の images/ フォルダに、重複しないランダムなファイル名で保存する
-            // 戻り値は保存先のパス（例: images/aBcD1234.jpg）。URLではなくパスをDBに保存する
-            $data['image_path'] = Storage::disk('s3')->put('images', $image);
+            // アップロード画像を読み込む（JPEG・PNGなどの形式は自動で判別される）
+            $gd = imagecreatefromstring(file_get_contents($image->getRealPath()));
+            imagepalettetotruecolor($gd);  // 256色のPNGもWebPに変換できるようにする
+
+            // WebP（品質80）に変換して、結果を変数に受け取る
+            ob_start();
+            imagewebp($gd, null, 80);
+            $webp = ob_get_clean();
+            imagedestroy($gd);
+
+            // 拡張子を .webp にしてS3に保存する。URLではなくパスをDBに保存する（例: images/xxxx.webp）
+            $path = 'images/'.Str::uuid().'.webp';
+            Storage::disk('s3')->put($path, $webp);
+            $data['image_path'] = $path;
         }
 
         return $data;

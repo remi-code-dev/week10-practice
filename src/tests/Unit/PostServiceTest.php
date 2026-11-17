@@ -65,14 +65,15 @@ class PostServiceTest extends TestCase
         ]);
     }
 
-    // TC-03：画像を渡すと、S3に保存され、image_path がDBに入る
+    // TC-03：画像を渡すと、WebPに変換してS3に保存され、image_path がDBに入る
     public function test_create_post_with_image_saves_image_path(): void
     {
         // ① 準備
         Storage::fake('s3');
         $user = User::factory()->create();
         $category = Category::factory()->create();
-        $image = UploadedFile::fake()->create('photo.jpg', 100, 'image/jpeg');
+        // image(): GDで本物の小さな画像を作る（WebP変換で中身を読むため、create() の空ファイルは使えない）
+        $image = UploadedFile::fake()->image('photo.jpg');
 
         // ② 実行
         $post = $this->service->createPost($user, [
@@ -83,6 +84,7 @@ class PostServiceTest extends TestCase
 
         // ③ 確認
         Storage::disk('s3')->assertExists($post->image_path);
+        $this->assertStringEndsWith('.webp', $post->image_path);
     }
 
     // TC-04：title がないと、DBのエラーになる
@@ -139,7 +141,7 @@ class PostServiceTest extends TestCase
         // ① 準備
         Storage::fake('s3');
         $post = Post::factory()->create(['image_path' => 'images/old.jpg']);
-        $image = UploadedFile::fake()->create('new.jpg', 100, 'image/jpeg');
+        $image = UploadedFile::fake()->image('new.jpg');
 
         // ② 実行
         $updated = $this->service->updatePost($post, ['title' => '新しいタイトル'], $image);
@@ -147,6 +149,7 @@ class PostServiceTest extends TestCase
         // ③ 確認
         $this->assertNotEquals('images/old.jpg', $updated->image_path);
         Storage::disk('s3')->assertExists($updated->image_path);
+        $this->assertStringEndsWith('.webp', $updated->image_path);
     }
 
     // TC-08：投稿がDBから消える

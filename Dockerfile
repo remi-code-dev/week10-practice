@@ -27,10 +27,14 @@ COPY --from=node-builder /app/public/build /var/www/html/public/build
 FROM php:8.2-fpm-alpine
 WORKDIR /var/www/html
 
-# 必要なものだけ入れる（DB接続 ＋ ヘルスチェック用の cgi-fcgi）
+# 必要なものだけ入れる（DB接続 ＋ 画像のWebP変換用のGD ＋ ヘルスチェック用の cgi-fcgi）
+# GDを作るための道具（-dev）は .build-deps にまとめ、作り終わったら消してイメージを軽くする
 # php-fpm の ping 機能を有効にする（/ping に問い合わせると pong が返る）
-RUN apk add --no-cache fcgi \
-    && docker-php-ext-install pdo_mysql \
+RUN apk add --no-cache fcgi libpng libjpeg-turbo libwebp \
+    && apk add --no-cache --virtual .build-deps libpng-dev libjpeg-turbo-dev libwebp-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-install pdo_mysql gd \
+    && apk del .build-deps \
     && echo "ping.path = /ping" >> /usr/local/etc/php-fpm.d/zz-docker.conf
 
 # 箱A・箱Cで作った物と、自分のコードを入れる（持ち主は www-data）
