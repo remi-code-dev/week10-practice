@@ -39,6 +39,15 @@ services:
     networks:
       - app-network
 
+  # Redis（キャッシュ用のインメモリDB）
+  # ports は書かない（インターネットから見えないようにする。app からは「redis」という名前で届く）
+  redis:
+    image: redis:7-alpine
+    restart: always
+    logging: *default-logging
+    networks:
+      - app-network
+
 volumes:
   storage:
 
